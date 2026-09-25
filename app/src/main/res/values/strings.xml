@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Optay</string>
+    <string name="app_tagline">Disconnect without disconnecting.</string>
+    <string name="quick_tile_label">Optay Focus</string>
+    <string name="notification_channel_name">Optay Protection Service</string>
+    <string name="notification_channel_desc">Shows active boundary and firewall status</string>
+    <string name="vpn_service_desc">Optay local network restriction firewall</string>
+</resources>

@@ -1,0 +1,6 @@
+{
+  "name": "Optay",
+  "description": "Keep the phone online while temporarily disconnecting unwanted apps and calls. Local firewall, focus modes, and smart boundaries.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
