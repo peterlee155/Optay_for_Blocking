@@ -23,46 +23,21 @@ class FocusModeRepository(
         scope.launch {
             val existing = dao.getAllFocusModes().first()
             if (existing.isEmpty()) {
-                val initialModes = DEFAULT_MODES.map { mode ->
-                    if (appDiscoveryRepository != null) {
-                        val installed = mode.blockedApps.filter { appDiscoveryRepository.isPackageInstalled(it) }.toSet()
-                        mode.copy(blockedApps = installed)
-                    } else {
-                        mode
-                    }
-                }
-                dao.insertAll(initialModes.map { it.toEntity() })
+                dao.insertAll(DEFAULT_MODES.map { it.toEntity() })
             }
         }
     }
 
     val focusModes: Flow<List<FocusMode>> = dao.getAllFocusModes().map { entities ->
-        entities.map { entity ->
-            val mode = entity.toDomain()
-            if (appDiscoveryRepository != null) {
-                mode.copy(blockedApps = mode.blockedApps.filter { appDiscoveryRepository.isPackageInstalled(it) }.toSet())
-            } else {
-                mode
-            }
-        }
+        entities.map { it.toDomain() }
     }
 
     suspend fun getModeById(id: String): FocusMode? {
-        val mode = dao.getFocusModeById(id)?.toDomain() ?: return null
-        return if (appDiscoveryRepository != null) {
-            mode.copy(blockedApps = mode.blockedApps.filter { appDiscoveryRepository.isPackageInstalled(it) }.toSet())
-        } else {
-            mode
-        }
+        return dao.getFocusModeById(id)?.toDomain()
     }
 
     suspend fun saveMode(mode: FocusMode) {
-        val finalMode = if (appDiscoveryRepository != null) {
-            mode.copy(blockedApps = mode.blockedApps.filter { appDiscoveryRepository.isPackageInstalled(it) }.toSet())
-        } else {
-            mode
-        }
-        dao.insertOrUpdate(finalMode.toEntity())
+        dao.insertOrUpdate(mode.toEntity())
     }
 
     suspend fun deleteMode(id: String) {
@@ -100,17 +75,19 @@ class FocusModeRepository(
                 allowedApps = setOf(
                     "com.google.android.apps.maps",
                     "com.spotify.music",
-                    "com.android.camera"
+                    "com.google.android.apps.photos"
                 ),
                 callBehavior = CallBehavior.SILENCE_WORK_NUMBERS,
                 isStrictMode = false,
-                durationMinutes = 720, // 12 hours / until morning
+                strictModeType = StrictModeType.CONFIRMATION_DELAY_10S,
+                durationMinutes = 180,
                 schedule = ScheduleRule(
                     daysOfWeek = setOf(1, 7), // Sun & Sat
-                    startHour = 22,
+                    startHour = 9,
                     startMinute = 0,
-                    endHour = 10,
-                    endMinute = 30
+                    endHour = 21,
+                    endMinute = 0,
+                    isEnabled = false
                 ),
                 isPredefined = true
             ),
@@ -118,55 +95,63 @@ class FocusModeRepository(
                 id = "mode_work",
                 name = "Work",
                 iconName = "work",
-                description = "Stay productive: silence games, video feeds, and leisure chats.",
-                colorHex = "#6366F1", // Indigo
+                description = "Stay focused during the workday. Silence non-essential notifications.",
+                colorHex = "#3B82F6", // Blue
                 blockedApps = setOf(
                     "com.instagram.android",
                     "com.zhiliaoapp.musically",
-                    "com.facebook.katana",
-                    "com.google.android.youtube",
-                    "com.reddit.frontpage"
+                    "com.twitter.android",
+                    "com.reddit.frontpage",
+                    "com.facebook.katana"
                 ),
-                allowedApps = emptySet(),
+                allowedApps = setOf(
+                    "com.Slack",
+                    "com.microsoft.teams",
+                    "com.google.android.gm"
+                ),
                 callBehavior = CallBehavior.SILENCE_UNKNOWN,
-                isStrictMode = false,
-                durationMinutes = 240, // 4 hours
+                isStrictMode = true,
+                strictModeType = StrictModeType.CONFIRMATION_DELAY_10S,
+                durationMinutes = 120,
                 schedule = ScheduleRule(
                     daysOfWeek = setOf(2, 3, 4, 5, 6), // Mon-Fri
                     startHour = 9,
                     startMinute = 0,
                     endHour = 17,
-                    endMinute = 0
+                    endMinute = 0,
+                    isEnabled = false
                 ),
                 isPredefined = true
             ),
             FocusMode(
                 id = "mode_study",
                 name = "Study",
-                iconName = "school",
-                description = "Focus on reading, writing, and research without interruptions.",
-                colorHex = "#3B82F6",
+                iconName = "menu_book",
+                description = "Eliminate all digital chatter for deep academic concentration.",
+                colorHex = "#8B5CF6", // Purple
                 blockedApps = setOf(
+                    "com.whatsapp",
                     "com.instagram.android",
                     "com.zhiliaoapp.musically",
-                    "com.facebook.katana",
                     "com.twitter.android",
                     "com.discord",
-                    "com.google.android.youtube"
+                    "com.google.android.youtube",
+                    "com.netflix.mediaclient"
                 ),
-                allowedApps = setOf("com.spotify.music"),
+                allowedApps = emptySet(),
                 callBehavior = CallBehavior.ALLOW_FAVORITES_ONLY,
                 isStrictMode = true,
-                strictModeType = StrictModeType.CONFIRMATION_DELAY_10S,
-                durationMinutes = 120, // 2 hours
+                strictModeType = StrictModeType.PHRASE_MATCH,
+                durationMinutes = 60,
+                schedule = null,
                 isPredefined = true
             ),
             FocusMode(
                 id = "mode_sleep",
                 name = "Sleep",
                 iconName = "bedtime",
-                description = "Quiet the digital world for restorative rest. Family only.",
-                colorHex = "#8B5CF6", // Violet
+                description = "Restful sleep boundary. Only emergency contacts can reach you.",
+                colorHex = "#6366F1", // Indigo
                 blockedApps = setOf(
                     "com.whatsapp",
                     "com.facebook.orca",
@@ -174,19 +159,22 @@ class FocusModeRepository(
                     "com.instagram.android",
                     "com.zhiliaoapp.musically",
                     "com.twitter.android",
-                    "org.telegram.messenger",
-                    "com.discord"
+                    "com.google.android.youtube",
+                    "com.netflix.mediaclient",
+                    "com.reddit.frontpage"
                 ),
                 allowedApps = emptySet(),
-                callBehavior = CallBehavior.ALLOW_FAVORITES_ONLY,
-                isStrictMode = false,
+                callBehavior = CallBehavior.EMERGENCY_ONLY,
+                isStrictMode = true,
+                strictModeType = StrictModeType.REFLECTION_PROMPT,
                 durationMinutes = 480, // 8 hours
                 schedule = ScheduleRule(
-                    daysOfWeek = setOf(1, 2, 3, 4, 5, 6, 7),
-                    startHour = 23,
-                    startMinute = 0,
+                    daysOfWeek = setOf(1, 2, 3, 4, 5, 6, 7), // Everyday
+                    startHour = 22,
+                    startMinute = 30,
                     endHour = 7,
-                    endMinute = 0
+                    endMinute = 0,
+                    isEnabled = false
                 ),
                 isPredefined = true
             ),
@@ -194,117 +182,123 @@ class FocusModeRepository(
                 id = "mode_deep_focus",
                 name = "Deep Focus",
                 iconName = "psychology",
-                description = "Strict isolation. High friction to stop. Silence everything non-vital.",
+                description = "Maximum digital isolation for flow state and creative output.",
                 colorHex = "#EC4899", // Pink
                 blockedApps = setOf(
                     "com.whatsapp",
                     "com.facebook.orca",
-                    "com.facebook.katana",
                     "com.instagram.android",
                     "com.zhiliaoapp.musically",
                     "com.twitter.android",
-                    "org.telegram.messenger",
-                    "com.discord",
+                    "com.google.android.youtube",
                     "com.reddit.frontpage",
-                    "com.google.android.youtube"
+                    "com.Slack",
+                    "com.microsoft.teams"
                 ),
-                allowedApps = setOf("com.google.android.apps.maps", "com.spotify.music"),
+                allowedApps = setOf("com.spotify.music"),
                 callBehavior = CallBehavior.EMERGENCY_ONLY,
                 isStrictMode = true,
                 strictModeType = StrictModeType.PHRASE_MATCH,
-                durationMinutes = 60,
+                durationMinutes = 90,
+                schedule = null,
                 isPredefined = true
             ),
             FocusMode(
                 id = "mode_personal_time",
                 name = "Personal Time",
-                iconName = "self_improvement",
-                description = "Disconnect from work tools (Slack, Teams, Email) and enjoy personal peace.",
+                iconName = "favorite",
+                description = "Disconnect from work and news. Be present with family and friends.",
                 colorHex = "#10B981", // Emerald
                 blockedApps = setOf(
                     "com.Slack",
                     "com.microsoft.teams",
-                    "com.google.android.gm"
+                    "com.google.android.gm",
+                    "com.twitter.android",
+                    "com.reddit.frontpage"
                 ),
-                allowedApps = setOf("com.spotify.music", "com.google.android.apps.maps"),
+                allowedApps = setOf(
+                    "com.whatsapp",
+                    "com.google.android.apps.photos"
+                ),
                 callBehavior = CallBehavior.SILENCE_WORK_NUMBERS,
                 isStrictMode = false,
-                durationMinutes = 180,
+                strictModeType = StrictModeType.CONFIRMATION_DELAY_10S,
+                durationMinutes = 120,
+                schedule = null,
                 isPredefined = true
             ),
             FocusMode(
                 id = "mode_social_detox",
                 name = "Social Detox",
                 iconName = "spa",
-                description = "Targeted block on infinite-scroll social feeds and short videos.",
+                description = "Take a healthy break from endless social media scrolling.",
                 colorHex = "#F59E0B", // Amber
                 blockedApps = setOf(
                     "com.instagram.android",
                     "com.zhiliaoapp.musically",
-                    "com.facebook.katana",
                     "com.twitter.android",
+                    "com.facebook.katana",
                     "com.reddit.frontpage",
-                    "com.google.android.youtube"
+                    "com.snapchat.android"
                 ),
                 allowedApps = emptySet(),
                 callBehavior = CallBehavior.ALLOW_ALL,
-                isStrictMode = false,
+                isStrictMode = true,
+                strictModeType = StrictModeType.CONFIRMATION_DELAY_10S,
                 durationMinutes = 1440, // 24 hours
+                schedule = null,
                 isPredefined = true
             ),
             FocusMode(
                 id = "mode_gaming",
                 name = "Gaming",
                 iconName = "sports_esports",
-                description = "Mute messaging alerts and work calls while gaming.",
-                colorHex = "#06B6D4",
+                description = "Uninterrupted gameplay without work pings or social distractions.",
+                colorHex = "#EF4444", // Red
                 blockedApps = setOf(
                     "com.whatsapp",
                     "com.facebook.orca",
-                    "com.Slack"
+                    "com.Slack",
+                    "com.microsoft.teams",
+                    "com.google.android.gm"
                 ),
-                allowedApps = emptySet(),
-                callBehavior = CallBehavior.SILENCE_UNKNOWN,
+                allowedApps = setOf("com.discord"),
+                callBehavior = CallBehavior.ALLOW_FAVORITES_ONLY,
                 isStrictMode = false,
-                durationMinutes = 120,
+                strictModeType = StrictModeType.CONFIRMATION_DELAY_10S,
+                durationMinutes = 90,
+                schedule = null,
                 isPredefined = true
             )
         )
     }
 }
 
-// Entity <-> Domain Mappers
-fun FocusMode.toEntity(): FocusModeEntity {
-    return FocusModeEntity(
-        id = id,
-        name = name,
-        iconName = iconName,
-        description = description,
-        colorHex = colorHex,
-        blockedAppsJson = blockedApps.joinToString(","),
-        allowedAppsJson = allowedApps.joinToString(","),
-        callBehavior = callBehavior.name,
-        isStrictMode = isStrictMode,
-        strictModeType = strictModeType.name,
-        durationMinutes = durationMinutes,
-        scheduleDays = schedule?.daysOfWeek?.joinToString(",") ?: "",
-        scheduleStartHour = schedule?.startHour ?: 0,
-        scheduleStartMinute = schedule?.startMinute ?: 0,
-        scheduleEndHour = schedule?.endHour ?: 0,
-        scheduleEndMinute = schedule?.endMinute ?: 0,
-        scheduleEnabled = schedule?.isEnabled ?: false,
-        isPredefined = isPredefined
-    )
-}
+private fun FocusMode.toEntity(): FocusModeEntity = FocusModeEntity(
+    id = id,
+    name = name,
+    iconName = iconName,
+    description = description,
+    colorHex = colorHex,
+    blockedAppsJson = blockedApps.joinToString(","),
+    allowedAppsJson = allowedApps.joinToString(","),
+    callBehavior = callBehavior.name,
+    isStrictMode = isStrictMode,
+    strictModeType = strictModeType.name,
+    durationMinutes = durationMinutes,
+    scheduleDays = schedule?.daysOfWeek?.joinToString(",") ?: "",
+    scheduleStartHour = schedule?.startHour ?: 9,
+    scheduleStartMinute = schedule?.startMinute ?: 0,
+    scheduleEndHour = schedule?.endHour ?: 17,
+    scheduleEndMinute = schedule?.endMinute ?: 0,
+    scheduleEnabled = schedule?.isEnabled ?: false,
+    isPredefined = isPredefined
+)
 
-fun FocusModeEntity.toDomain(): FocusMode {
-    val blocked = if (blockedAppsJson.isBlank()) emptySet() else blockedAppsJson.split(",").map { it.trim() }.toSet()
-    val allowed = if (allowedAppsJson.isBlank()) emptySet() else allowedAppsJson.split(",").map { it.trim() }.toSet()
-
-    val sched = if (scheduleDays.isNotBlank()) {
-        val days = scheduleDays.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+private fun FocusModeEntity.toDomain(): FocusMode {
+    val schedule = if (scheduleDays.isNotBlank()) {
         ScheduleRule(
-            daysOfWeek = days,
+            daysOfWeek = scheduleDays.split(",").filter { it.isNotBlank() }.mapNotNull { it.toIntOrNull() }.toSet(),
             startHour = scheduleStartHour,
             startMinute = scheduleStartMinute,
             endHour = scheduleEndHour,
@@ -319,13 +313,13 @@ fun FocusModeEntity.toDomain(): FocusMode {
         iconName = iconName,
         description = description,
         colorHex = colorHex,
-        blockedApps = blocked,
-        allowedApps = allowed,
+        blockedApps = blockedAppsJson.split(",").filter { it.isNotBlank() }.toSet(),
+        allowedApps = allowedAppsJson.split(",").filter { it.isNotBlank() }.toSet(),
         callBehavior = try { CallBehavior.valueOf(callBehavior) } catch (e: Exception) { CallBehavior.ALLOW_ALL },
         isStrictMode = isStrictMode,
         strictModeType = try { StrictModeType.valueOf(strictModeType) } catch (e: Exception) { StrictModeType.CONFIRMATION_DELAY_10S },
         durationMinutes = durationMinutes,
-        schedule = sched,
+        schedule = schedule,
         isPredefined = isPredefined
     )
 }

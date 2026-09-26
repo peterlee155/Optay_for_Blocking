@@ -157,18 +157,19 @@ fun SettingsScreen(
                     } else {
                         OutlinedButton(
                             onClick = {
-                                revenueCatManager.setProStatus(false)
-                                restoreFeedback = "Switched to Free tier preview."
+                                revenueCatManager.refreshCustomerInfo()
+                                restoreFeedback = "Entitlements synced with Google Play."
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text("Switch to Free Preview")
+                            Text("Sync Entitlements")
                         }
                     }
 
                     OutlinedButton(
                         onClick = {
+                            restoreFeedback = "Querying Google Play purchases..."
                             revenueCatManager.restorePurchases { success, msg ->
                                 restoreFeedback = msg
                             }

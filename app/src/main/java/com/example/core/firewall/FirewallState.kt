@@ -5,17 +5,21 @@ import com.example.domain.model.StrictModeType
 
 enum class FirewallStatus {
     INACTIVE,
+    PREPARING,
     STARTING,
     ACTIVE,
     STOPPING,
-    ERROR
+    COMPLETED,
+    ERROR,
+    OVERRIDE_ACTIVE
 }
 
 data class ActiveSessionState(
+    val sessionId: String = "session_${System.currentTimeMillis()}",
     val modeId: String,
     val modeName: String,
-    val iconName: String,
-    val colorHex: String,
+    val iconName: String = "shield",
+    val colorHex: String = "#06B6D4",
     val blockedApps: Set<String>,
     val allowedApps: Set<String>,
     val callBehavior: CallBehavior,

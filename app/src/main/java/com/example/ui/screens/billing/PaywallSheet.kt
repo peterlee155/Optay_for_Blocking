@@ -1,5 +1,6 @@
 package com.example.ui.screens.billing
 
+import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import com.example.billing.DEFAULT_PLANS
 import com.example.billing.ProductPlan
 import com.example.billing.RevenueCatManager
+import com.example.billing.SubscriptionState
+import com.example.ui.theme.CoralBlocked
 import com.example.ui.theme.CyanPrimary
 import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.IndigoSecondary
@@ -69,8 +75,17 @@ fun PaywallSheet(
     onDismiss: () -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
-    var selectedPlanId by remember { mutableStateOf("optay_pro_yearly") }
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val plans by revenueCatManager.availablePlans.collectAsState()
+    val subState by revenueCatManager.subscriptionState.collectAsState()
+
+    var selectedPlanId by remember(plans) {
+        mutableStateOf(plans.firstOrNull()?.id ?: "optay_pro_yearly")
+    }
     var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
+    var isPurchasing by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -194,7 +209,7 @@ fun PaywallSheet(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Plans Selector
-            DEFAULT_PLANS.forEach { plan ->
+            plans.forEach { plan ->
                 val isSelected = plan.id == selectedPlanId
                 PlanOptionCard(
                     plan = plan,
@@ -208,7 +223,8 @@ fun PaywallSheet(
                 Text(
                     text = statusMessage ?: "",
                     style = MaterialTheme.typography.bodySmall,
-                    color = EmeraldSuccess,
+                    color = if (isError) CoralBlocked else EmeraldSuccess,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
@@ -218,14 +234,33 @@ fun PaywallSheet(
             // CTA Button
             Button(
                 onClick = {
-                    revenueCatManager.purchase(
-                        productId = selectedPlanId,
-                        onSuccess = {
-                            statusMessage = "Optay Pro Activated! Enjoy full boundary control."
-                            onDismiss()
-                        }
-                    )
+                    if (activity != null) {
+                        isPurchasing = true
+                        statusMessage = null
+                        isError = false
+                        revenueCatManager.purchase(
+                            activity = activity,
+                            targetPackageId = selectedPlanId,
+                            onSuccess = {
+                                isPurchasing = false
+                                statusMessage = "Optay Pro Verified! Enjoy full digital boundary control."
+                                isError = false
+                                onDismiss()
+                            },
+                            onError = { err, userCancelled ->
+                                isPurchasing = false
+                                if (!userCancelled) {
+                                    statusMessage = err
+                                    isError = true
+                                }
+                            }
+                        )
+                    } else {
+                        statusMessage = "Unable to launch billing sheet: Activity context unavailable."
+                        isError = true
+                    }
                 },
+                enabled = !isPurchasing,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp)
@@ -233,11 +268,19 @@ fun PaywallSheet(
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary)
             ) {
-                Text(
-                    text = "Start 7-Day Free Trial",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Color(0xFF042F2E)
-                )
+                if (isPurchasing) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF042F2E),
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = if (selectedPlanId.contains("monthly")) "Start 3-Day Free Trial" else "Start 7-Day Free Trial",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF042F2E)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -249,9 +292,14 @@ fun PaywallSheet(
             ) {
                 TextButton(
                     onClick = {
+                        statusMessage = "Checking Google Play entitlements..."
+                        isError = false
                         revenueCatManager.restorePurchases { success, msg ->
                             statusMessage = msg
-                            if (success) onDismiss()
+                            isError = !success
+                            if (success) {
+                                onDismiss()
+                            }
                         }
                     },
                     modifier = Modifier.testTag("restore_purchases_button")

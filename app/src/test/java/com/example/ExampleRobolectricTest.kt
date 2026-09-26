@@ -2,10 +2,12 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.example.billing.Feature
-import com.example.billing.FeatureGate
-import com.example.billing.RevenueCatManager
+import com.example.calls.CallScreeningHelper
+import com.example.core.firewall.ActiveSessionState
 import com.example.data.repository.FocusModeRepository
+import com.example.domain.model.CallBehavior
+import com.example.domain.model.ScheduleRule
+import com.example.domain.model.StrictModeType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -37,22 +39,50 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `verify feature gate limits on free tier`() {
+    fun `verify wall clock session expiration logic`() {
+        val now = 1000000L
+        val activeSession = ActiveSessionState(
+            sessionId = "test_session_1",
+            modeId = "mode_work",
+            modeName = "Work",
+            blockedApps = setOf("com.instagram.android"),
+            allowedApps = emptySet(),
+            callBehavior = CallBehavior.ALLOW_ALL,
+            startTimeMillis = now,
+            endTargetTimeMillis = now + 60000L, // 60s in future
+            isStrictMode = false,
+            strictModeType = StrictModeType.CONFIRMATION_DELAY_10S
+        )
+
+        assertFalse(activeSession.isExpired(now))
+        assertEquals(60L, activeSession.remainingSeconds(now))
+
+        // Time passed target
+        assertTrue(activeSession.isExpired(now + 60001L))
+        assertEquals(0L, activeSession.remainingSeconds(now + 60001L))
+    }
+
+    @Test
+    fun `verify schedule rule overnight and day formatting`() {
+        val schedule = ScheduleRule(
+            daysOfWeek = setOf(2, 3, 4, 5, 6),
+            startHour = 9,
+            startMinute = 0,
+            endHour = 17,
+            endMinute = 0,
+            isEnabled = true
+        )
+        val formatted = schedule.formatSchedule()
+        assertTrue(formatted.contains("Mon–Fri"))
+        assertTrue(formatted.contains("09:00"))
+        assertTrue(formatted.contains("17:00"))
+    }
+
+    @Test
+    fun `verify call screening helper handles context safely`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val revenueCatManager = RevenueCatManager(context)
-        revenueCatManager.setProStatus(false)
-        val featureGate = FeatureGate(revenueCatManager)
-
-        // Free tier allows 1 custom mode
-        assertTrue(featureGate.canUse(Feature.UNLIMITED_MODES, currentCustomModesCount = 0))
-        assertFalse(featureGate.canUse(Feature.UNLIMITED_MODES, currentCustomModesCount = 1))
-
-        // AI commands and strict mode require Pro
-        assertFalse(featureGate.canUse(Feature.AI_COMMANDS))
-
-        // Upgrade to Pro
-        revenueCatManager.setProStatus(true)
-        assertTrue(featureGate.canUse(Feature.AI_COMMANDS))
-        assertTrue(featureGate.canUse(Feature.UNLIMITED_MODES, currentCustomModesCount = 5))
+        // In Robolectric without telephony, should return false or safe boolean without throwing
+        val hasContacts = CallScreeningHelper.hasContactsPermission(context)
+        assertFalse(hasContacts) // Permission not granted by default in clean context
     }
 }

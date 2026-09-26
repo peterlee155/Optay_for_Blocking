@@ -14,6 +14,14 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
+    <!-- Queries declaration for launcher apps to comply with package visibility on Android 11+ -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".OptayApplication"
         android:allowBackup="true"
@@ -73,14 +81,20 @@
             </intent-filter>
         </service>
 
-        <!-- Device Boot Receiver to optionally restore active profile -->
+        <!-- Device Boot & Package Update Receiver to restore active session and re-arm schedules -->
         <receiver
             android:name=".core.receiver.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- Focus Schedule Alarms Receiver -->
+        <receiver
+            android:name=".core.schedule.ScheduleReceiver"
+            android:exported="false" />
 
     </application>
 

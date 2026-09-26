@@ -1,10 +1,24 @@
 package com.example.billing
 
+import com.revenuecat.purchases.CustomerInfo
+import com.revenuecat.purchases.Package
+
 enum class SubscriptionTier {
     FREE,
     PRO,
     EXPIRED,
     UNKNOWN
+}
+
+sealed class SubscriptionState {
+    object Loading : SubscriptionState()
+    data class Free(val customerInfo: CustomerInfo? = null) : SubscriptionState()
+    data class Pro(
+        val expirationDateMillis: Long? = null,
+        val willRenew: Boolean = true,
+        val customerInfo: CustomerInfo? = null
+    ) : SubscriptionState()
+    data class Error(val message: String) : SubscriptionState()
 }
 
 enum class Feature(val displayName: String, val proOnly: Boolean) {
@@ -24,7 +38,8 @@ data class ProductPlan(
     val price: String,
     val billingPeriod: String,
     val badge: String? = null,
-    val trialPeriod: String? = null
+    val trialPeriod: String? = null,
+    val rcPackage: Package? = null
 )
 
 val DEFAULT_PLANS = listOf(

@@ -29,7 +29,7 @@ class OptayCallScreeningService : CallScreeningService() {
         val handle: Uri? = callDetails.handle
         val rawNumber = handle?.schemeSpecificPart ?: ""
         if (rawNumber.isNotBlank() && PhoneNumberUtils.isEmergencyNumber(rawNumber)) {
-            Log.i(TAG, "Emergency number detected. Bypassing Optay call screening.")
+            Log.i(TAG, "Emergency number detected. Bypassing Optay call screening completely.")
             respondToCall(callDetails, responseBuilder.build())
             return
         }
@@ -49,29 +49,26 @@ class OptayCallScreeningService : CallScreeningService() {
                 // Allow through normally
             }
             CallBehavior.SILENCE_UNKNOWN -> {
-                val isKnown = isContactKnown(rawNumber)
-                if (!isKnown) {
+                // Private, hidden, or unknown callers silenced
+                if (rawNumber.isBlank() || !isContactKnown(rawNumber)) {
                     silenceCall(responseBuilder)
-                    Log.i(TAG, "Silenced unknown caller per active focus mode rule.")
+                    Log.i(TAG, "Silenced unknown or private caller per active focus mode rule.")
                 }
             }
             CallBehavior.ALLOW_FAVORITES_ONLY -> {
-                val isFavorite = isContactStarred(rawNumber)
-                if (!isFavorite) {
+                if (rawNumber.isBlank() || !isContactStarred(rawNumber)) {
                     silenceCall(responseBuilder)
                     Log.i(TAG, "Silenced non-favorite caller per active focus mode rule.")
                 }
             }
             CallBehavior.SILENCE_WORK_NUMBERS -> {
-                val isWork = isWorkContact(rawNumber)
-                if (isWork) {
+                if (rawNumber.isNotBlank() && isWorkContact(rawNumber)) {
                     silenceCall(responseBuilder)
-                    Log.i(TAG, "Silenced work-related contact per Off Day focus rule.")
+                    Log.i(TAG, "Silenced work-related contact per focus rule.")
                 }
             }
             CallBehavior.EMERGENCY_ONLY -> {
-                val isFavorite = isContactStarred(rawNumber)
-                if (!isFavorite) {
+                if (rawNumber.isBlank() || !isContactStarred(rawNumber)) {
                     silenceCall(responseBuilder)
                     Log.i(TAG, "Silenced non-emergency caller per Deep Focus rule.")
                 }
@@ -84,7 +81,7 @@ class OptayCallScreeningService : CallScreeningService() {
     private fun silenceCall(builder: CallResponse.Builder) {
         builder.setSilenceCall(true)
         builder.setSkipNotification(true)
-        builder.setSkipCallLog(false) // Keep in call log so user can see missed calls later
+        builder.setSkipCallLog(false) // Retain in system call log so user can see missed calls
     }
 
     private fun isContactKnown(phoneNumber: String): Boolean {

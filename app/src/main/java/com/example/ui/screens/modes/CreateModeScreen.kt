@@ -59,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -96,6 +97,7 @@ fun CreateModeScreen(
     onNavigateBack: () -> Unit
 ) {
     val isEditing = existingMode != null
+    val context = LocalContext.current
 
     var modeName by remember(existingMode) { mutableStateOf(existingMode?.name ?: "") }
     var modeDescription by remember(existingMode) { mutableStateOf(existingMode?.description ?: "") }
@@ -652,6 +654,7 @@ fun CreateModeScreen(
                         )
                         scope.launch {
                             focusModeRepository.saveMode(modeToSave)
+                            com.example.core.schedule.ScheduleManager.scheduleNextForMode(context, modeToSave)
                             onNavigateBack()
                         }
                     }

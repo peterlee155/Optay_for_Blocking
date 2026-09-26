@@ -85,6 +85,22 @@ fun OptayApp() {
     // Pending mode start waiting for system VPN permission dialog
     var pendingModeToStart by remember { mutableStateOf<Pair<FocusMode, Int>?>(null) }
 
+    val callRoleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            Toast.makeText(context, "Call screening role enabled.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val contactsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(context, "Contacts permission helps identify work and emergency callers.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val vpnLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
