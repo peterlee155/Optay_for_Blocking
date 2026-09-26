@@ -259,6 +259,8 @@ fun OptayApp() {
                     OptayTab.SETTINGS -> SettingsScreen(
                         preferencesRepository = app.preferencesRepository,
                         revenueCatManager = app.revenueCatManager,
+                        firebaseManager = app.firebaseManager,
+                        focusModeRepository = app.focusModeRepository,
                         onShowPaywall = { isPaywallOpen = true }
                     )
                 }

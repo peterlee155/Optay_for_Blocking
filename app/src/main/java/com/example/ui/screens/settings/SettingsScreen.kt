@@ -61,15 +61,37 @@ import com.example.ui.theme.CyanPrimary
 import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.IndigoSecondary
 
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.CircularProgressIndicator
+import com.example.core.firebase.FirebaseManager
+import com.example.core.firebase.FirebaseSyncState
+import com.example.data.repository.FocusModeRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
 @Composable
 fun SettingsScreen(
     preferencesRepository: PreferencesRepository,
     revenueCatManager: RevenueCatManager,
+    firebaseManager: FirebaseManager,
+    focusModeRepository: FocusModeRepository,
     onShowPaywall: () -> Unit
 ) {
     val isRestoreOnBoot by preferencesRepository.isRestoreOnBootEnabled.collectAsState()
     val isProActive by revenueCatManager.isProActive.collectAsState()
+    val currentUser by firebaseManager.currentUser.collectAsState()
+    val syncState by firebaseManager.syncState.collectAsState()
+    val lastSyncTime by firebaseManager.lastSyncTime.collectAsState()
+
     var restoreFeedback by remember { mutableStateOf<String?>(null) }
+    var firebaseFeedback by remember { mutableStateOf<String?>(null) }
+    var isOperatingFirebase by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -187,6 +209,169 @@ fun SettingsScreen(
                         text = restoreFeedback ?: "",
                         style = MaterialTheme.typography.bodySmall,
                         color = EmeraldSuccess
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Firebase Cloud Sync Section
+        Text(
+            text = "Cloud Backup & Sync (Firebase)",
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+            border = BorderStroke(1.dp, CyanPrimary.copy(alpha = 0.25f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(CyanPrimary.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CloudSync, contentDescription = null, tint = CyanPrimary, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (currentUser != null) "Firebase Connected" else "Firebase Cloud Sync",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = if (currentUser != null) "UID: ${currentUser?.uid?.take(10)}... • Online"
+                                else "Sign in to backup & sync profiles across devices",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            isOperatingFirebase = true
+                            firebaseFeedback = "Backing up profiles to Cloud Firestore..."
+                            CoroutineScope(Dispatchers.IO).launch {
+                                val currentModes = focusModeRepository.focusModes.first()
+                                firebaseManager.backupProfilesToCloud(currentModes) { success, msg ->
+                                    isOperatingFirebase = false
+                                    firebaseFeedback = msg
+                                }
+                            }
+                        },
+                        enabled = !isOperatingFirebase,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary)
+                    ) {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF042F2E))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Backup", color = Color(0xFF042F2E), fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            isOperatingFirebase = true
+                            firebaseFeedback = "Fetching profiles from Cloud Firestore..."
+                            firebaseManager.restoreProfilesFromCloud { success, restoredModes, msg ->
+                                if (success && restoredModes.isNotEmpty()) {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        for (mode in restoredModes) {
+                                            focusModeRepository.saveMode(mode)
+                                        }
+                                    }
+                                }
+                                isOperatingFirebase = false
+                                firebaseFeedback = msg
+                            }
+                        },
+                        enabled = !isOperatingFirebase,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Restore")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Auth Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (currentUser == null) {
+                        TextButton(
+                            onClick = {
+                                isOperatingFirebase = true
+                                firebaseFeedback = "Connecting to Firebase Auth..."
+                                firebaseManager.signInAnonymously { success, msg ->
+                                    isOperatingFirebase = false
+                                    firebaseFeedback = msg
+                                }
+                            }
+                        ) {
+                            Text("Sign In with Firebase", fontSize = 12.sp, color = CyanPrimary)
+                        }
+                    } else {
+                        TextButton(
+                            onClick = {
+                                firebaseManager.signOut()
+                                firebaseFeedback = "Signed out of Firebase."
+                            }
+                        ) {
+                            Text("Sign Out", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+
+                    if (lastSyncTime != null) {
+                        Text(
+                            text = "Last sync: Just now",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (isOperatingFirebase) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = CyanPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = firebaseFeedback ?: "Syncing...", style = MaterialTheme.typography.bodySmall, color = CyanPrimary)
+                    }
+                } else if (firebaseFeedback != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = firebaseFeedback ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (firebaseFeedback?.contains("fail", ignoreCase = true) == true) MaterialTheme.colorScheme.error else EmeraldSuccess
                     )
                 }
             }

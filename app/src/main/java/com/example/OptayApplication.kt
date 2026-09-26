@@ -40,6 +40,9 @@ class OptayApplication : Application() {
     lateinit var featureGate: FeatureGate
         private set
 
+    lateinit var firebaseManager: com.example.core.firebase.FirebaseManager
+        private set
+
     lateinit var analyticsTracker: AnalyticsTracker
         private set
 
@@ -68,6 +71,7 @@ class OptayApplication : Application() {
         // Initialize real RevenueCat Purchases
         revenueCatManager = RevenueCatManager(this)
         featureGate = FeatureGate(revenueCatManager)
+        firebaseManager = com.example.core.firebase.FirebaseManager(this)
         analyticsTracker = AnalyticsTracker(this)
         aiProvider = OptayAIProvider()
 

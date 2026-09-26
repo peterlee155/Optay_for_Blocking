@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -104,6 +105,7 @@ fun CreateModeScreen(
     var selectedIcon by remember(existingMode) { mutableStateOf(existingMode?.iconName ?: "shield") }
     var selectedColorHex by remember(existingMode) { mutableStateOf(existingMode?.colorHex ?: "#06B6D4") }
     var selectedDurationMinutes by remember(existingMode) { mutableIntStateOf(existingMode?.durationMinutes ?: 120) }
+    var isCustomDurationDialogOpen by remember { mutableStateOf(false) }
     var selectedCallBehavior by remember(existingMode) { mutableStateOf(existingMode?.callBehavior ?: CallBehavior.ALLOW_ALL) }
     var isStrictMode by remember(existingMode) { mutableStateOf(existingMode?.isStrictMode ?: false) }
     var strictModeType by remember(existingMode) { mutableStateOf(existingMode?.strictModeType ?: StrictModeType.CONFIRMATION_DELAY_10S) }
@@ -525,11 +527,45 @@ fun CreateModeScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // STEP 3: DEFAULT DURATION
-            Text(
-                text = "3. Default Duration",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = CyanPrimary
-            )
+            if (isCustomDurationDialogOpen) {
+                com.example.ui.components.CustomDurationDialog(
+                    initialMinutes = selectedDurationMinutes,
+                    onDismiss = { isCustomDurationDialogOpen = false },
+                    onConfirm = { customMinutes ->
+                        selectedDurationMinutes = customMinutes
+                    }
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "3. Default Duration",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = CyanPrimary
+                )
+                TextButton(
+                    onClick = { isCustomDurationDialogOpen = true },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = CyanPrimary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Set Custom Time",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = CyanPrimary
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             val durations = listOf(
                 30 to "30m",
@@ -540,13 +576,42 @@ fun CreateModeScreen(
                 720 to "12h (Off Day)",
                 0 to "Until manual stop"
             )
+
+            val isCustomModeDuration = durations.none { it.first == selectedDurationMinutes }
+            val customLabel = if (selectedDurationMinutes <= 0) "Indefinite"
+            else if (selectedDurationMinutes % 60 == 0) "${selectedDurationMinutes / 60}h"
+            else if (selectedDurationMinutes > 60) "${selectedDurationMinutes / 60}h ${selectedDurationMinutes % 60}m"
+            else "${selectedDurationMinutes}m"
+
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isCustomModeDuration) {
+                    item {
+                        FilterChip(
+                            selected = true,
+                            onClick = { isCustomDurationDialogOpen = true },
+                            label = { Text("Custom ($customLabel)", fontWeight = FontWeight.Bold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CyanPrimary.copy(alpha = 0.25f),
+                                selectedLabelColor = CyanPrimary
+                            )
+                        )
+                    }
+                }
+
                 items(durations) { (minutes, label) ->
                     val isSelected = selectedDurationMinutes == minutes
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedDurationMinutes = minutes },
                         label = { Text(label) }
+                    )
+                }
+
+                item {
+                    FilterChip(
+                        selected = false,
+                        onClick = { isCustomDurationDialogOpen = true },
+                        label = { Text("+ Custom...") }
                     )
                 }
             }

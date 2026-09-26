@@ -123,8 +123,19 @@ fun DashboardScreen(
 
     // Duration options
     var selectedDurationMinutes by remember { mutableIntStateOf(120) }
+    var isCustomDurationDialogOpen by remember { mutableStateOf(false) }
 
     val isActive = firewallStatus == FirewallStatus.ACTIVE && activeSession != null
+
+    if (isCustomDurationDialogOpen) {
+        com.example.ui.components.CustomDurationDialog(
+            initialMinutes = selectedDurationMinutes,
+            onDismiss = { isCustomDurationDialogOpen = false },
+            onConfirm = { customMinutes ->
+                selectedDurationMinutes = customMinutes
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -232,6 +243,7 @@ fun DashboardScreen(
                 mode = selectedMode,
                 selectedDuration = selectedDurationMinutes,
                 onDurationChange = { selectedDurationMinutes = it },
+                onOpenCustomDuration = { isCustomDurationDialogOpen = true },
                 onStartMode = {
                     onTriggerStartFocus(selectedMode, selectedDurationMinutes)
                 },
@@ -515,6 +527,7 @@ private fun InactiveModeHeroCard(
     mode: FocusMode,
     selectedDuration: Int,
     onDurationChange: (Int) -> Unit,
+    onOpenCustomDuration: () -> Unit,
     onStartMode: () -> Unit,
     onConfigureApps: () -> Unit
 ) {
@@ -639,15 +652,39 @@ private fun InactiveModeHeroCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Duration selector chips
-            Text(
-                text = "Select Duration:",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Duration selector header with custom time action
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Select Duration:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(
+                    onClick = onOpenCustomDuration,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = CyanPrimary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Set Custom Time",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = CyanPrimary
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(6.dp))
 
-            val durationOptions = listOf(
+            val standardPresets = listOf(
                 15 to "15m",
                 60 to "1h",
                 120 to "2h",
@@ -657,8 +694,32 @@ private fun InactiveModeHeroCard(
                 0 to "Indefinite"
             )
 
+            // If user set a custom duration not in presets, display it prominently
+            val isCustomDuration = standardPresets.none { it.first == selectedDuration }
+            val customLabel = if (selectedDuration <= 0) "Indefinite"
+            else if (selectedDuration % 60 == 0) "${selectedDuration / 60}h"
+            else if (selectedDuration > 60) "${selectedDuration / 60}h ${selectedDuration % 60}m"
+            else "${selectedDuration}m"
+
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(durationOptions) { (min, label) ->
+                if (isCustomDuration) {
+                    item {
+                        FilterChip(
+                            selected = true,
+                            onClick = onOpenCustomDuration,
+                            label = { Text("Custom ($customLabel)", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CyanPrimary.copy(alpha = 0.25f),
+                                selectedLabelColor = CyanPrimary
+                            ),
+                            leadingIcon = {
+                                Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = CyanPrimary)
+                            }
+                        )
+                    }
+                }
+
+                items(standardPresets) { (min, label) ->
                     val isSelected = selectedDuration == min
                     FilterChip(
                         selected = isSelected,
@@ -670,11 +731,30 @@ private fun InactiveModeHeroCard(
                         )
                     )
                 }
+
+                item {
+                    FilterChip(
+                        selected = false,
+                        onClick = onOpenCustomDuration,
+                        label = { Text("+ Custom...", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            labelColor = CyanPrimary
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
             // PRIMARY ONE-TAP BUTTON: START MODE
+            val durationTag = when {
+                selectedDuration <= 0 -> "Indefinite"
+                selectedDuration % 60 == 0 -> "${selectedDuration / 60}h"
+                selectedDuration > 60 -> "${selectedDuration / 60}h ${selectedDuration % 60}m"
+                else -> "${selectedDuration}m"
+            }
+
             Button(
                 onClick = onStartMode,
                 modifier = Modifier
@@ -692,10 +772,10 @@ private fun InactiveModeHeroCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "START ${mode.name.uppercase()}",
+                    text = "START ${mode.name.uppercase()} • $durationTag",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
+                        letterSpacing = 0.8.sp
                     ),
                     color = Color(0xFF042F2E)
                 )
